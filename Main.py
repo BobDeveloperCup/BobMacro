@@ -9,7 +9,7 @@ from PIL import Image, ImageTk
 
 MAPVK_VK_TO_VSC = 0
 KEYEVENTF_KEYUP = 0x0002
-IMAGE_RAW_URL = "https://raw.githubusercontent.com/BobDeveloperCup/BobMacro/refs/heads/main/Icon.png"
+IMAGE_RAW_URL = "https://raw.githubusercontent.com/BobDeveloperCup/BobMacro/main/Icon.png"
 
 def press_key(hex_key):
     scan_code = ctypes.windll.user32.MapVirtualKeyW(hex_key, MAPVK_VK_TO_VSC)
