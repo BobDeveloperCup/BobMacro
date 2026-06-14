@@ -3,17 +3,21 @@ import threading
 import time
 import ctypes
 import webbrowser
+import urllib.request
+import io
+from PIL import Image, ImageTk
 
 MAPVK_VK_TO_VSC = 0
 KEYEVENTF_KEYUP = 0x0002
+IMAGE_RAW_URL = "https://raw.githubusercontent.com/BobDeveloperCup/BobMacro/refs/heads/main/Icon.png"
 
-def pressionar_tecla(hex_key):
+def press_key(hex_key):
     scan_code = ctypes.windll.user32.MapVirtualKeyW(hex_key, MAPVK_VK_TO_VSC)
     ctypes.windll.user32.keybd_event(hex_key, scan_code, 0, 0)
     time.sleep(0.01)
     ctypes.windll.user32.keybd_event(hex_key, scan_code, KEYEVENTF_KEYUP, 0)
 
-teclas_mapeadas = {
+mapped_keys = {
     'A': 0x41, 'B': 0x42, 'C': 0x43, 'D': 0x44, 'E': 0x45, 'F': 0x46, 'G': 0x47,
     'H': 0x48, 'I': 0x49, 'J': 0x4A, 'K': 0x4B, 'L': 0x4C, 'M': 0x4D, 'N': 0x4E,
     'O': 0x4F, 'P': 0x50, 'Q': 0x51, 'R': 0x52, 'S': 0x53, 'T': 0x54, 'U': 0x55,
@@ -31,49 +35,63 @@ class BobMacroUI:
         self.root.configure(bg="#0B0B0E")
         self.root.resizable(False, False)
         
-        self.executando = False
-        self.spam_ativo = False
-        self.janela_focada = True
+        self.running = False
+        self.spam_active = False
+        self.window_focused = True
         
-        self.criar_ui()
-        self.checar_foco_janela()
+        self.cached_spam_codes = []
+        self.cached_activation_code = None
+        self.cached_delay = 0.1
+        
+        self.create_ui()
+        self.check_window_focus()
+        threading.Thread(target=self.load_network_logo, daemon=True).start()
 
-    def abrir_canal(self, event):
+    def open_channel(self, event):
         webbrowser.open_new("https://bobdevelopercup.github.io/BobDeveloperCup-Links/")
 
-    def checar_foco_janela(self):
+    def check_window_focus(self):
         try:
-            id_janela_ativa = ctypes.windll.user32.GetForegroundWindow()
-            id_nossa_janela = self.root.winfo_id()
+            active_window_id = ctypes.windll.user32.GetForegroundWindow()
+            our_window_id = self.root.winfo_id()
             
-            janela_atual_pai = ctypes.windll.user32.GetParent(id_janela_ativa)
-            id_real_ativo = janela_atual_pai if janela_atual_pai != 0 else id_janela_ativa
+            current_parent_window = ctypes.windll.user32.GetParent(active_window_id)
+            real_active_id = current_parent_window if current_parent_window != 0 else active_window_id
 
-            if id_real_ativo == id_nossa_janela or id_janela_ativa == id_nossa_janela:
-                if not self.janela_focada:
-                    self.janela_focada = True
-                    if self.spam_ativo:
-                        self.spam_ativo = False
+            if real_active_id == our_window_id or active_window_id == our_window_id:
+                if not self.window_focused:
+                    self.window_focused = True
+                    if self.spam_active:
+                        self.spam_active = False
                         self.lbl_info.config(text="STATUS: PAUSED (WINDOW FOCUSED)", fg="#FFCC00")
             else:
-                self.janela_focada = False
+                self.window_focused = False
         except Exception:
             pass
             
-        self.root.after(100, self.checar_foco_janela)
+        self.root.after(100, self.check_window_focus)
 
-    def criar_ui(self):
+    def load_network_logo(self):
+        try:
+            with urllib.request.urlopen(IMAGE_RAW_URL, timeout=10) as response:
+                image_data = response.read()
+            raw_image = Image.open(io.BytesIO(image_data))
+            
+            width, height = raw_image.size
+            raw_image = raw_image.resize((width // 3, height // 3), Image.Resampling.LANCZOS)
+            
+            self.logo_img = ImageTk.PhotoImage(raw_image)
+            self.root.after(0, lambda: self.lbl_logo.config(image=self.logo_img))
+        except Exception:
+            pass
+
+    def create_ui(self):
         header_frame = tk.Frame(self.root, bg="#111118", height=80)
         header_frame.pack(fill="x", side="top")
         header_frame.pack_propagate(False)
 
-        try:
-            self.logo_img = tk.PhotoImage(file="Icon.png")
-            self.logo_img = self.logo_img.subsample(3, 3) 
-            lbl_logo = tk.Label(header_frame, image=self.logo_img, bg="#111118")
-            lbl_logo.pack(side="left", padx=20, pady=10)
-        except Exception:
-            pass
+        self.lbl_logo = tk.Label(header_frame, bg="#111118")
+        self.lbl_logo.pack(side="left", padx=20, pady=10)
 
         texto_titulo_frame = tk.Frame(header_frame, bg="#111118")
         texto_titulo_frame.pack(side="left", fill="y", pady=15)
@@ -102,8 +120,8 @@ class BobMacroUI:
         container = tk.Frame(self.root, bg="#0B0B0E")
         container.pack(pady=20, padx=30, fill="both", expand=True)
 
-        def criar_campo_estilizado(row, texto, default_val):
-            tk.Label(container, text=texto, font=("Segoe UI Semibold", 9), bg="#0B0B0E", fg="#8E8E9F").grid(row=row, column=0, sticky="w", pady=8)
+        def create_styled_field(row, text, default_val):
+            tk.Label(container, text=text, font=("Segoe UI Semibold", 9), bg="#0B0B0E", fg="#8E8E9F").grid(row=row, column=0, sticky="w", pady=8)
             
             borda_input = tk.Frame(container, bg="#1E1E2A", padx=1, pady=1)
             borda_input.grid(row=row, column=1, padx=15, pady=8, sticky="we")
@@ -125,9 +143,9 @@ class BobMacroUI:
             
             return input_field
 
-        self.txt_teclas = criar_campo_estilizado(0, "KEYS TO SPAM", "E, ESPACO")
-        self.txt_delay = criar_campo_estilizado(1, "SPAM DELAY (S)", "0.1")
-        self.txt_ativacao = criar_campo_estilizado(2, "TOGGLE KEY", "X")
+        self.txt_teclas = create_styled_field(0, "KEYS TO SPAM", "E, ESPACO")
+        self.txt_delay = create_styled_field(1, "SPAM DELAY (S)", "0.1")
+        self.txt_ativacao = create_styled_field(2, "TOGGLE KEY", "X")
 
         container.grid_columnconfigure(1, weight=1)
 
@@ -144,7 +162,7 @@ class BobMacroUI:
             highlightthickness=0,
             activebackground="#7B2CBF", 
             activeforeground="#0B0B0E",
-            command=self.alternar_estado,
+            command=self.toggle_state,
             cursor="hand2"
         )
         self.btn_status.pack(ipadx=35, ipady=10)
@@ -158,7 +176,7 @@ class BobMacroUI:
             cursor="hand2"
         )
         lbl_credito.pack(pady=5)
-        lbl_credito.bind("<Button-1>", self.abrir_canal)
+        lbl_credito.bind("<Button-1>", self.open_channel)
 
         footer_frame = tk.Frame(self.root, bg="#08080A", height=35)
         footer_frame.pack(fill="x", side="bottom")
@@ -173,48 +191,47 @@ class BobMacroUI:
         )
         self.lbl_info.pack(side="left", padx=20, expand=True, anchor="w")
 
-    def alternar_estado(self):
-        if not self.executando:
-            self.executando = True
-            self.spam_ativo = False
+    def toggle_state(self):
+        if not self.running:
+            try:
+                self.cached_delay = float(self.txt_delay.get())
+            except ValueError:
+                self.cached_delay = 0.1
+
+            teclas_raw = self.txt_teclas.get().upper().replace(" ", "").split(",")
+            self.cached_spam_codes = [mapped_keys[t] for t in teclas_raw if t in mapped_keys]
+
+            tecla_start_raw = self.txt_ativacao.get().upper().strip()
+            self.cached_activation_code = mapped_keys.get(tecla_start_raw, None)
+
+            if not self.cached_spam_codes or not self.cached_activation_code:
+                return
+
+            self.running = True
+            self.spam_active = False
             self.borda_btn.config(bg="#FF3344")
             self.btn_status.config(text="STOP SERVICE", fg="#FF3344", bg="#181316")
             self.lbl_info.config(text="STATUS: WAITING FOR TOGGLE KEY...", fg="#FFB703")
-            threading.Thread(target=self.loop_spam, daemon=True).start()
+            threading.Thread(target=self.spam_loop, daemon=True).start()
         else:
-            self.executando = False
-            self.spam_ativo = False
+            self.running = False
+            self.spam_active = False
             self.borda_btn.config(bg="#7B2CBF")
             self.btn_status.config(text="START SERVICE", fg="#7B2CBF", bg="#13131A")
             self.lbl_info.config(text="STATUS: INACTIVE", fg="#555565")
 
-    def loop_spam(self):
-        try:
-            delay = float(self.txt_delay.get())
-        except ValueError:
-            delay = 0.1
-
-        teclas_raw = self.txt_teclas.get().upper().replace(" ", "").split(",")
-        codigos_spam = [teclas_mapeadas[t] for t in teclas_raw if t in teclas_mapeadas]
-
-        tecla_start_raw = self.txt_ativacao.get().upper().strip()
-        codigo_ativacao = teclas_mapeadas.get(tecla_start_raw, None)
-
-        if not codigos_spam or not codigo_ativacao:
-            self.root.after(0, self.alternar_estado)
-            return
-
+    def spam_loop(self):
         tuple_pressionada_anterior = False
 
-        while self.executando:
-            if not self.janela_focada:
-                estado_tecla = (ctypes.windll.user32.GetAsyncKeyState(codigo_ativacao) & 0x8000) != 0
+        while self.running:
+            if not self.window_focused:
+                estado_tecla = (ctypes.windll.user32.GetAsyncKeyState(self.cached_activation_code) & 0x8000) != 0
 
                 if estado_tecla:
                     if not tuple_pressionada_anterior:
-                        self.spam_ativo = not self.spam_ativo
+                        self.spam_active = not self.spam_active
                         tuple_pressionada_anterior = True
-                        if self.spam_ativo:
+                        if self.spam_active:
                             self.lbl_info.config(text="STATUS: ACTIVE (SPAMMING)", fg="#00FFA3")
                         else:
                             self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703")
@@ -223,20 +240,20 @@ class BobMacroUI:
             else:
                 tuple_pressionada_anterior = False
 
-            if self.spam_ativo and not self.janela_focada:
-                for codigo in codigos_spam:
-                    if not self.executando or not self.spam_ativo or self.janela_focada:
+            if self.spam_active and not self.window_focused:
+                for codigo in self.cached_spam_codes:
+                    if not self.running or not self.spam_active or self.window_focused:
                         break
 
-                    if (ctypes.windll.user32.GetAsyncKeyState(codigo_ativacao) & 0x8000) != 0:
+                    if (ctypes.windll.user32.GetAsyncKeyState(self.cached_activation_code) & 0x8000) != 0:
                         if not tuple_pressionada_anterior:
-                            self.spam_ativo = False
+                            self.spam_active = False
                             tuple_pressionada_anterior = True
                             self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703")
                             break
 
-                    pressionar_tecla(codigo)
-                    time.sleep(delay)
+                    press_key(codigo)
+                    time.sleep(self.cached_delay)
             else:
                 time.sleep(0.02)
 
