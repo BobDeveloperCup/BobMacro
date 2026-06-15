@@ -63,7 +63,7 @@ class BobMacroUI:
                     self.window_focused = True
                     if self.spam_active:
                         self.spam_active = False
-                        self.lbl_info.config(text="STATUS: PAUSED (WINDOW FOCUSED)", fg="#FFCC00")
+                        self.root.after(0, lambda: self.lbl_info.config(text="STATUS: PAUSED (WINDOW FOCUSED)", fg="#FFCC00"))
             else:
                 self.window_focused = False
         except Exception:
@@ -232,9 +232,9 @@ class BobMacroUI:
                         self.spam_active = not self.spam_active
                         tuple_pressionada_anterior = True
                         if self.spam_active:
-                            self.lbl_info.config(text="STATUS: ACTIVE (SPAMMING)", fg="#00FFA3")
+                            self.root.after(0, lambda: self.lbl_info.config(text="STATUS: ACTIVE (SPAMMING)", fg="#00FFA3"))
                         else:
-                            self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703")
+                            self.root.after(0, lambda: self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703"))
                 else:
                     tuple_pressionada_anterior = False
             else:
@@ -249,13 +249,13 @@ class BobMacroUI:
                         if not tuple_pressionada_anterior:
                             self.spam_active = False
                             tuple_pressionada_anterior = True
-                            self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703")
+                            self.root.after(0, lambda: self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703"))
                             break
 
                     press_key(codigo)
                     time.sleep(self.cached_delay)
             else:
-                time.sleep(0.02)
+                time.sleep(0.01)
 
 if __name__ == "__main__":
     root = tk.Tk()
