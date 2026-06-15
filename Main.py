@@ -1,20 +1,21 @@
+import tkinter as tk
 import threading
 import time
 import ctypes
 import webbrowser
 import urllib.request
 import io
-import tkinter as tk
 from PIL import Image, ImageTk
 
-MOUSEEVENTF_LEFTDOWN = 0x0002
-MOUSEEVENTF_LEFTUP = 0x0004
-IMAGE_RAW_URL = "https://raw.githubusercontent.com/BobDeveloperCup/BobMacro/main/Icon.png"
+MAPVK_VK_TO_VSC = 0
+KEYEVENTF_KEYUP = 0x0002
+IMAGE_RAW_URL = "https://raw.githubusercontent.com/BobDeveloperCup/BobMacro/refs/heads/main/Icon.png"
 
-def mouse_click():
-    ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-    time.sleep(0.001)
-    ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+def press_key(hex_key):
+    scan_code = ctypes.windll.user32.MapVirtualKeyW(hex_key, MAPVK_VK_TO_VSC)
+    ctypes.windll.user32.keybd_event(hex_key, scan_code, 0, 0)
+    time.sleep(0.01)
+    ctypes.windll.user32.keybd_event(hex_key, scan_code, KEYEVENTF_KEYUP, 0)
 
 mapped_keys = {
     'A': 0x41, 'B': 0x42, 'C': 0x43, 'D': 0x44, 'E': 0x45, 'F': 0x46, 'G': 0x47,
@@ -23,15 +24,13 @@ mapped_keys = {
     'V': 0x56, 'W': 0x57, 'X': 0x58, 'Y': 0x59, 'Z': 0x5A,
     '0': 0x30, '1': 0x31, '2': 0x32, '3': 0x33, '4': 0x34, '5': 0x35, '6': 0x36,
     '7': 0x37, '8': 0x38, '9': 0x39,
-    'F1': 0x70, 'F2': 0x71, 'F3': 0x72, 'F4': 0x73, 'F5': 0x74, 'F6': 0x75,
-    'F7': 0x76, 'F8': 0x77, 'F9': 0x78, 'F10': 0x79, 'F11': 0x7A, 'F12': 0x7B,
     'ESPACO': 0x20, 'ENTER': 0x0D, 'SHIFT': 0x10, 'CTRL': 0x11
 }
 
 class BobMacroUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("BobClicker v1.0.0")
+        self.root.title("BobMacro v1.5.2")
         self.root.geometry("450x480")
         self.root.configure(bg="#0B0B0E")
         self.root.resizable(False, False)
@@ -40,6 +39,7 @@ class BobMacroUI:
         self.spam_active = False
         self.window_focused = True
         
+        self.cached_spam_codes = []
         self.cached_activation_code = None
         self.cached_delay = 0.1
         
@@ -98,7 +98,7 @@ class BobMacroUI:
 
         titulo = tk.Label(
             texto_titulo_frame, 
-            text="BobClicker", 
+            text="BobMacro", 
             font=("Segoe UI", 18, "bold"), 
             bg="#111118", 
             fg="#FFFFFF"
@@ -118,13 +118,13 @@ class BobMacroUI:
         divisor.pack(fill="x")
 
         container = tk.Frame(self.root, bg="#0B0B0E")
-        container.pack(pady=15, padx=30, fill="both", expand=True)
+        container.pack(pady=20, padx=30, fill="both", expand=True)
 
         def create_styled_field(row, text, default_val):
-            tk.Label(container, text=text, font=("Segoe UI Semibold", 9), bg="#0B0B0E", fg="#8E8E9F").grid(row=row, column=0, sticky="w", pady=6)
+            tk.Label(container, text=text, font=("Segoe UI Semibold", 9), bg="#0B0B0E", fg="#8E8E9F").grid(row=row, column=0, sticky="w", pady=8)
             
             borda_input = tk.Frame(container, bg="#1E1E2A", padx=1, pady=1)
-            borda_input.grid(row=row, column=1, padx=15, pady=6, sticky="we")
+            borda_input.grid(row=row, column=1, padx=15, pady=8, sticky="we")
             
             input_field = tk.Entry(
                 borda_input, 
@@ -135,7 +135,7 @@ class BobMacroUI:
                 bd=0,
                 highlightthickness=0
             )
-            input_field.pack(fill="both", ipadx=8, ipady=5)
+            input_field.pack(fill="both", ipadx=8, ipady=6)
             input_field.insert(0, default_val)
             
             input_field.bind("<FocusIn>", lambda e: borda_input.config(bg="#9D4EDD"))
@@ -143,15 +143,14 @@ class BobMacroUI:
             
             return input_field
 
-        self.txt_min = create_styled_field(0, "MINUTES", "0")
-        self.txt_sec = create_styled_field(1, "SECONDS", "0")
-        self.txt_ms = create_styled_field(2, "MILLISECONDS", "100")
-        self.txt_ativacao = create_styled_field(3, "TOGGLE KEY", "F8")
+        self.txt_teclas = create_styled_field(0, "KEYS TO SPAM", "E, ESPACO")
+        self.txt_delay = create_styled_field(1, "SPAM DELAY (S)", "0.1")
+        self.txt_ativacao = create_styled_field(2, "TOGGLE KEY", "X")
 
         container.grid_columnconfigure(1, weight=1)
 
         self.borda_btn = tk.Frame(self.root, bg="#7B2CBF", padx=1, pady=1)
-        self.borda_btn.pack(pady=10)
+        self.borda_btn.pack(pady=15)
 
         self.btn_status = tk.Button(
             self.borda_btn, 
@@ -195,19 +194,17 @@ class BobMacroUI:
     def toggle_state(self):
         if not self.running:
             try:
-                minutes = float(self.txt_min.get() or 0) * 60
-                seconds = float(self.txt_sec.get() or 0)
-                milliseconds = float(self.txt_ms.get() or 0) / 1000
-                self.cached_delay = minutes + seconds + milliseconds
-                if self.cached_delay <= 0:
-                    self.cached_delay = 0.005
+                self.cached_delay = float(self.txt_delay.get())
             except ValueError:
                 self.cached_delay = 0.1
+
+            teclas_raw = self.txt_teclas.get().upper().replace(" ", "").split(",")
+            self.cached_spam_codes = [mapped_keys[t] for t in teclas_raw if t in mapped_keys]
 
             tecla_start_raw = self.txt_ativacao.get().upper().strip()
             self.cached_activation_code = mapped_keys.get(tecla_start_raw, None)
 
-            if not self.cached_activation_code:
+            if not self.cached_spam_codes or not self.cached_activation_code:
                 return
 
             self.running = True
@@ -227,24 +224,38 @@ class BobMacroUI:
         tuple_pressionada_anterior = False
 
         while self.running:
-            estado_tecla = (ctypes.windll.user32.GetAsyncKeyState(self.cached_activation_code) & 0x8000) != 0
+            if not self.window_focused:
+                estado_tecla = (ctypes.windll.user32.GetAsyncKeyState(self.cached_activation_code) & 0x8000) != 0
 
-            if estado_tecla:
-                if not tuple_pressionada_anterior:
-                    self.spam_active = not self.spam_active
-                    tuple_pressionada_anterior = True
-                    if self.spam_active:
-                        self.lbl_info.config(text="STATUS: ACTIVE (CLICKING)", fg="#00FFA3")
-                    else:
-                        self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703")
+                if estado_tecla:
+                    if not tuple_pressionada_anterior:
+                        self.spam_active = not self.spam_active
+                        tuple_pressionada_anterior = True
+                        if self.spam_active:
+                            self.lbl_info.config(text="STATUS: ACTIVE (SPAMMING)", fg="#00FFA3")
+                        else:
+                            self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703")
+                else:
+                    tuple_pressionada_anterior = False
             else:
                 tuple_pressionada_anterior = False
 
             if self.spam_active and not self.window_focused:
-                mouse_click()
-                time.sleep(self.cached_delay)
+                for codigo in self.cached_spam_codes:
+                    if not self.running or not self.spam_active or self.window_focused:
+                        break
+
+                    if (ctypes.windll.user32.GetAsyncKeyState(self.cached_activation_code) & 0x8000) != 0:
+                        if not tuple_pressionada_anterior:
+                            self.spam_active = False
+                            tuple_pressionada_anterior = True
+                            self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703")
+                            break
+
+                    press_key(codigo)
+                    time.sleep(self.cached_delay)
             else:
-                time.sleep(0.03)
+                time.sleep(0.02)
 
 if __name__ == "__main__":
     root = tk.Tk()
