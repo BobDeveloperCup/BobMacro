@@ -1,4 +1,4 @@
-import tkinter as tk
+#Made By BOBDEVELOPERCUP
 import threading
 import time
 import ctypes
