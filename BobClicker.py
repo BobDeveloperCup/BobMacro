@@ -200,7 +200,7 @@ class BobMacroUI:
                 milliseconds = float(self.txt_ms.get() or 0) / 1000
                 self.cached_delay = minutes + seconds + milliseconds
                 if self.cached_delay <= 0:
-                    self.cached_delay = 0.001
+                    self.cached_delay = 0.005
             except ValueError:
                 self.cached_delay = 0.1
 
@@ -227,37 +227,24 @@ class BobMacroUI:
         tuple_pressionada_anterior = False
 
         while self.running:
-            if not self.window_focused:
-                estado_tecla = (ctypes.windll.user32.GetAsyncKeyState(self.cached_activation_code) & 0x8000) != 0
+            estado_tecla = (ctypes.windll.user32.GetAsyncKeyState(self.cached_activation_code) & 0x8000) != 0
 
-                if estado_tecla:
-                    if not tuple_pressionada_anterior:
-                        self.spam_active = not self.spam_active
-                        tuple_pressionada_anterior = True
-                        if self.spam_active:
-                            self.lbl_info.config(text="STATUS: ACTIVE (CLICKING)", fg="#00FFA3")
-                        else:
-                            self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703")
-                else:
-                    tuple_pressionada_anterior = False
+            if estado_tecla:
+                if not tuple_pressionada_anterior:
+                    self.spam_active = not self.spam_active
+                    tuple_pressionada_anterior = True
+                    if self.spam_active:
+                        self.lbl_info.config(text="STATUS: ACTIVE (CLICKING)", fg="#00FFA3")
+                    else:
+                        self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703")
             else:
                 tuple_pressionada_anterior = False
 
             if self.spam_active and not self.window_focused:
-                if not self.running or not self.spam_active or self.window_focused:
-                    continue
-
-                if (ctypes.windll.user32.GetAsyncKeyState(self.cached_activation_code) & 0x8000) != 0:
-                    if not tuple_pressionada_anterior:
-                        self.spam_active = False
-                        tuple_pressionada_anterior = True
-                        self.lbl_info.config(text="STATUS: PAUSED (WAITING)", fg="#FFB703")
-                        continue
-
                 mouse_click()
                 time.sleep(self.cached_delay)
             else:
-                time.sleep(0.02)
+                time.sleep(0.01)
 
 if __name__ == "__main__":
     root = tk.Tk()
